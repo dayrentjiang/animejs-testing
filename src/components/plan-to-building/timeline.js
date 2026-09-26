@@ -7,7 +7,12 @@ export const BASE_DURATION = 21400;
 
 // `loop: false` builds once and stops on the finished building (used for scroll
 // sync); `loop: true` adds the teardown so autoplay can cycle seamlessly.
-export function buildTimeline(model, { duration = BASE_DURATION, onRender, onUpdate, loop = true, autoplay = false } = {}) {
+// `lead` delays the build (room for a camera move) and `holds` adds pauses
+// after the ground floor, after the third storey and on the finished building;
+// both are in unscaled ms. The returned `marks` give each hold's [start, end].
+export function buildTimeline(model, {
+  duration = BASE_DURATION, onRender, onUpdate, loop = true, autoplay = false, lead = 0, holds = {},
+} = {}) {
   const k = duration / BASE_DURATION;
   const T = (ms) => ms * k;
   const { storeys, roof, crown, steps } = model;
@@ -64,16 +69,19 @@ export function buildTimeline(model, { duration = BASE_DURATION, onRender, onUpd
   };
 
   // ---- Build -------------------------------------------------------------
-  tl.label('plan', 0);
+  const hold = { ground: 0, storeys: 0, complete: 0, ...holds };
+  const marks = {};
+  tl.label('plan', lead);
   const g = storeys[0];
-  let t = T(700);
+  let t = lead + T(700);
   rise(g, t, T(1600));
   riseInterior(g, t + T(110), T(1450));
   fitDetails(g, t + T(1350));
   tl.add(positions(steps), { z: [-1.4, 0], duration: T(650), ease: 'outCubic', delay: stagger(T(120)) }, t + T(1450));
   tl.label('ground', t + T(2300));
+  marks.ground = [t + T(2500), t + T(2500) + hold.ground];
 
-  t += T(2500);
+  t += T(2500) + hold.ground;
   for (let i = 1; i < storeys.length; i++) {
     const s = storeys[i];
     placeSlab(s, storeys[i - 1].top, t);
@@ -81,7 +89,11 @@ export function buildTimeline(model, { duration = BASE_DURATION, onRender, onUpd
     rise(s, up, T(1300));
     riseInterior(s, up + T(110), T(1200));
     fitDetails(s, up + T(1050));
-    if (i === 2) tl.label('storeys', up + T(1200));
+    if (i === 2) {
+      tl.label('storeys', up + T(1200));
+      marks.storeys = [t + T(3500), t + T(2300) + hold.storeys];
+      t += hold.storeys;
+    }
     t += T(2300);
   }
 
@@ -92,9 +104,10 @@ export function buildTimeline(model, { duration = BASE_DURATION, onRender, onUpd
   tl.label('complete', revealAt + T(400));
 
   if (!loop) {
-    const end = revealAt + T(1500);
+    const end = revealAt + T(1500) + hold.complete;
+    marks.complete = [revealAt, end];
     tl.add({ duration: 1 }, end - 1);
-    return { timeline: tl, labels: { ...tl.labels }, duration: end };
+    return { timeline: tl, labels: { ...tl.labels }, duration: end, marks };
   }
 
   // ---- Return to the plan --------------------------------------------------
@@ -127,6 +140,7 @@ export function buildTimeline(model, { duration = BASE_DURATION, onRender, onUpd
   const end = u + T(850) + T(700);
   tl.add({ duration: 1 }, end - 1);
 
-  return { timeline: tl, labels: { ...tl.labels }, duration: end };
+  marks.complete = [revealAt, revealAt + T(2600)];
+  return { timeline: tl, labels: { ...tl.labels }, duration: end, marks };
 }
 

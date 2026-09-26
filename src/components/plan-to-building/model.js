@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const DEFAULT_COLORS = {
+  accent: '#c0592f',
+  highlight: '#f5ddd0',
   surface: '#ffffff',
   glass: '#e3e5e7',
   door: '#ebebe8',
@@ -661,11 +663,51 @@ export function createModel(colors = {}) {
   crown.position.y = storeys[0].wallBase + storeys[0].s0 * storeys[0].H;
   root.add(crown);
 
+  // Tinted floor areas for room callouts; each has its own fading material.
+  const patch = (parent, pts, y) => {
+    const material = new THREE.MeshBasicMaterial({
+      color: palette.highlight, transparent: true, opacity: 0, depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(prism(pts, [], y, 0.01), material);
+    mesh.renderOrder = 1;
+    parent.add(mesh);
+    return mesh;
+  };
+  const patches = {
+    hall: patch(storeys[0].body, [[-3.15, 7.7], [3.15, 7.7], [3.15, 27.8], [-3.15, 27.8]], 0.02),
+    living: patch(storeys[0].body, [[-14.3, 15.6], [-6.3, 15.6], [-6.3, 29.2], [-14.3, 21.2]], 0.02),
+    baths: patch(storeys[0].body, [[8, 15.6], [10.3, 15.6], [10.3, 22.8], [8, 22.8]], 0.02),
+    roof: patch(roof.body, offsetPolygon(OUTLINE, -0.45), 0.01),
+  };
+
+  // Callout anchor points in world space.
+  const w = (x, y, z) => new THREE.Vector3(x - PLAN_CENTER[0], y, z - PLAN_CENTER[1]);
+  const onFacade = (frame, s, y, out) => w(
+    frame.a[0] + frame.u[0] * s + frame.n[0] * out, y, frame.a[1] + frame.u[1] * s + frame.n[1] * out,
+  );
+  const [, s1, s2] = storeys;
+  const crownTop = roof.wallBase + roof.H + 0.5;
+  const anchors = {
+    // Rooms near the facade have floors hidden behind it from this camera, so
+    // their anchors float at wall-top height over the room instead.
+    hall: w(0, LEVELS.podium + 0.05, 12.5),
+    stair: w(-10.5, LEVELS.podium + LEVELS.groundH * 0.45, 9.6),
+    living: w(-10.4, LEVELS.podium + LEVELS.groundH - 0.2, 19.2),
+    baths: w(9.15, LEVELS.podium + LEVELS.groundH - 0.2, 19.2),
+    apartments: onFacade(FRAMES.leftDiag, FRAMES.leftDiag.length / 2, s1.wallBase + 2.3, 0.1),
+    balconies: onFacade(FRAMES.rightDiag, FRAMES.rightDiag.length / 2, s2.wallBase + 1.55, 0.5),
+    roof: w(0, roof.wallBase + 0.02, 11),
+    cornice: onFacade(FRAMES.leftDiag, FRAMES.leftDiag.length / 3, crownTop, 0.3),
+    entrance: onFacade(FRAMES.entrance, FRAMES.entrance.length / 2, LEVELS.podium + 3.2, 0.2),
+    // Outer corners of the facade, top and bottom, for placing labels beside it.
+    edges: [[-15, 21.5], [15, 21.5]].flatMap(([x, z]) => [w(x, 0, z), w(x, crownTop, z)]),
+  };
+
   const topY = roof.wallBase + roof.H + 1;
   const boundsPoints = [
     ...corners.flatMap(([x, z]) => [[x, 0, z], [x, -1.1, z]]),
     ...OUTLINE.map(([x, z]) => [x, topY, z]),
   ].map(([x, y, z]) => new THREE.Vector3(x - PLAN_CENTER[0], y, z - PLAN_CENTER[1]));
 
-  return { root, storeys, roof, crown, steps, materials, boundsPoints, palette };
+  return { root, storeys, roof, crown, steps, materials, boundsPoints, palette, patches, anchors };
 }

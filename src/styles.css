@@ -47,34 +47,27 @@ a { color: inherit; }
 .site-header nav a { text-decoration: none; color: var(--muted); transition: color 150ms ease; }
 .site-header nav a:hover { color: var(--ink); }
 
-/* Hero: the copy and the drawing both stay pinned while you scroll through the
-   tall track; the track's scroll range drives the build. */
-.hero {
-  --hero-progress: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-  gap: 48px;
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0 32px;
-}
-.hero__copy {
-  position: sticky;
-  top: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  height: 100svh;
-  padding: 80px 0 40px;
-}
-.hero__track { height: 340svh; }
+/* Hero: a tall scroll track with a full-screen sticky stage. The drawing fills
+   the stage; the copy overlays it and leaves as the camera centres the building. */
+.hero { --hero-progress: 0; }
+.hero__track { height: 700svh; }
 .hero__sticky {
   position: sticky;
   top: 0;
-  display: grid;
-  place-items: center;
   height: 100svh;
-  padding: 72px 0 24px;
+  overflow: hidden;
+}
+.hero__stage { position: absolute; inset: 0; }
+.hero__copy {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: max(32px, calc((100vw - 1280px) / 2 + 32px));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: min(540px, 40vw);
+  padding: 80px 0 40px;
 }
 
 .scroll-hint {
@@ -162,13 +155,9 @@ h1 em { font-style: italic; color: #55585e; }
 .facts dt { font-size: 12px; color: var(--muted); }
 .facts dd { margin: 2px 0 0; font-family: var(--serif); font-size: 30px; line-height: 1.1; }
 
-.hero__visual { width: min(100%, 680px, calc(100svh - 170px)); }
-
-/* Reduced motion: no scroll track, just the static drawing beside the copy. */
-.hero[data-mode='loop'] { align-items: center; }
+/* Reduced motion: no scroll track; the finished drawing sits beside the copy. */
 .hero[data-mode='loop'] .hero__track { height: auto; }
-.hero[data-mode='loop'] .hero__sticky { position: static; height: auto; min-height: 100svh; }
-.hero[data-mode='loop'] .hero__copy { position: static; }
+.hero[data-mode='loop'] .hero__sticky { position: relative; }
 
 .work {
   max-width: 1280px;
@@ -211,14 +200,22 @@ h1 em { font-style: italic; color: #55585e; }
 @media (max-width: 900px) {
   .site-header { padding: 18px 20px; }
   .site-header nav { gap: 18px; }
-  /* Stacked: the copy scrolls normally, then the drawing pins for the build. */
-  .hero { grid-template-columns: 1fr; gap: 0; padding: 0 20px; }
-  .hero__copy { position: static; height: auto; padding: 96px 0 24px; }
-  .hero__track { height: 300svh; }
-  .hero__sticky { padding: 16px 0; }
-  .hero__visual { width: min(100%, 560px, calc(100svh - 110px)); }
-  .scroll-hint { margin-top: 28px; }
-  .facts { gap: 28px; margin-top: 36px; }
+  /* Stacked: the copy sits at the top of the stage, the drawing below it. */
+  .hero__track { height: 640svh; }
+  .hero__copy {
+    top: 76px;
+    bottom: auto;
+    left: 20px;
+    width: calc(100% - 40px);
+    padding: 0;
+  }
+  .hero__copy .lede { margin-top: 16px; }
+  .hero__copy .actions { margin-top: 22px; }
+  .hero__copy .facts { display: none; }
+  .hero[data-mode='loop'] .hero__sticky { display: flex; flex-direction: column; height: auto; }
+  .hero[data-mode='loop'] .hero__copy { order: -1; position: static; width: auto; padding: 84px 20px 0; }
+  .hero[data-mode='loop'] .hero__stage { position: relative; height: min(118vw, 640px); }
+  .scroll-hint { margin-top: 20px; }
   .work { padding: 80px 20px 64px; }
   .work__list li { grid-template-columns: 1fr; gap: 4px; }
   .site-footer { flex-direction: column; gap: 6px; padding: 24px 20px 32px; }

@@ -21,30 +21,31 @@
     </header>
 
     <main>
-      <!-- The hero is a tall scroll track; the drawing stays pinned while the
-           scroll position builds the building. -->
+      <!-- The hero is a tall scroll track. Its sticky stage holds the drawing
+           full-screen; the copy sits on top and leaves as scrolling begins,
+           then the camera centres the building and scroll builds it. -->
       <section class="hero" aria-labelledby="hero-title" data-hero>
-        <div class="hero__copy">
-          <p class="eyebrow">Residential architecture · Paris &amp; Lyon</p>
-          <h1 id="hero-title">From the first line<br /><em>to the last stone.</em></h1>
-          <p class="lede">
-            We design apartment buildings the way they are built: plan first, then floor by floor,
-            until the cornice closes the drawing.
-          </p>
-          <div class="actions">
-            <a class="button button--solid" href="#work">See our buildings</a>
-            <a class="button button--ghost" href="#contact">Start a project</a>
-          </div>
-          <dl class="facts">
-            <div><dt>Storeys</dt><dd>4</dd></div>
-            <div><dt>Apartments</dt><dd>12</dd></div>
-            <div><dt>Plan to handover</dt><dd>26 mo.</dd></div>
-          </dl>
-          <p class="scroll-hint" aria-hidden="true"><span></span>Scroll to build</p>
-        </div>
         <div class="hero__track" data-hero-track>
           <div class="hero__sticky">
-            <div class="hero__visual" data-plan-to-building></div>
+            <div class="hero__stage" data-plan-to-building></div>
+            <div class="hero__copy" data-hero-copy>
+              <p class="eyebrow">Residential architecture · Paris &amp; Lyon</p>
+              <h1 id="hero-title">From the first line<br /><em>to the last stone.</em></h1>
+              <p class="lede">
+                We design apartment buildings the way they are built: plan first, then floor by floor,
+                until the cornice closes the drawing.
+              </p>
+              <div class="actions">
+                <a class="button button--solid" href="#work">See our buildings</a>
+                <a class="button button--ghost" href="#contact">Start a project</a>
+              </div>
+              <dl class="facts">
+                <div><dt>Storeys</dt><dd>4</dd></div>
+                <div><dt>Apartments</dt><dd>12</dd></div>
+                <div><dt>Plan to handover</dt><dd>26 mo.</dd></div>
+              </dl>
+              <p class="scroll-hint" aria-hidden="true"><span></span>Scroll to build</p>
+            </div>
           </div>
         </div>
       </section>

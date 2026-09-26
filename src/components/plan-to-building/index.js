@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { onScroll } from 'animejs';
 import { createModel } from './model.js';
 import { buildTimeline, BASE_DURATION } from './timeline.js';
+import { createCallouts, DEFAULT_CALLOUTS } from './callouts.js';
 import './plan-to-building.css';
 
 const STAGES = [
@@ -28,8 +29,17 @@ export function createPlanToBuilding(container, options = {}) {
     controls = true,
     colors,
     maxPixelRatio = 2,
-    scroll = null, // { target, enter = 'top top', leave = 'bottom bottom', sync = 0.4 }
+    scroll = null, // { target, enter = 'top top', leave = 'bottom bottom', sync = 0.4, scrollTo(y) }
     onProgress = null,
+    // Fill the container instead of keeping an aspect ratio (controls overlay the bottom).
+    fill = false,
+    // Where the drawing sits on the stage, as px rects { x, y, w, h } from (width, height).
+    // In scroll mode the camera eases from `start` to `focus` before the build begins.
+    framing = null,
+    // Scroll mode only: labelled parts (see callouts.js); false to disable.
+    callouts = DEFAULT_CALLOUTS,
+    // Scroll mode only: (timeline, { labels, marks, T }) => void, to add page tweens.
+    decorate = null,
     label = 'Axonometric drawing of a floor plan rising, storey by storey, into a four-storey corner apartment building.',
   } = options;
 
@@ -37,7 +47,7 @@ export function createPlanToBuilding(container, options = {}) {
   const scrollMode = Boolean(scroll?.target) && !reducedQuery.matches;
 
   const el = document.createElement('div');
-  el.className = 'ptb';
+  el.className = fill ? 'ptb ptb--fill' : 'ptb';
   el.dataset.state = 'loading';
   el.dataset.mode = scrollMode ? 'scroll' : 'loop';
   const stageButtons = STAGES.map(([key, text]) => `<button type="button" class="ptb__stage-btn" data-label="${key}">${text}</button>`).join('');
@@ -120,18 +130,51 @@ export function createPlanToBuilding(container, options = {}) {
     }
     model.roof.block.visible = model.roof.block.scale.y > 0.002;
   }
+  let stageW = 1;
+  let stageH = 1;
+  const pad = (w, h) => ({ x: w * 0.02, y: h * 0.02, w: w * 0.96, h: h * 0.96 });
+  // Orthographic frustum that maps the drawing's bounds onto a stage rect.
+  function frameCamera() {
+    const a = (framing?.start ?? pad)(stageW, stageH);
+    const b = (framing?.focus ?? framing?.start ?? pad)(stageW, stageH);
+    const f = cam.focus;
+    const r = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, w: a.w + (b.w - a.w) * f, h: a.h + (b.h - a.h) * f };
+    const s = Math.max((view.max.x - view.min.x) / r.w, (view.max.y - view.min.y) / r.h);
+    const cx = (view.max.x + view.min.x) / 2;
+    const cy = (view.max.y + view.min.y) / 2;
+    camera.left = cx - (r.x + r.w / 2) * s;
+    camera.right = camera.left + stageW * s;
+    camera.top = cy + (r.y + r.h / 2) * s;
+    camera.bottom = camera.top - stageH * s;
+    camera.updateProjectionMatrix();
+  }
   function render() {
     syncVisibility();
+    frameCamera();
+    calloutLayer?.update(camera, stageW, stageH);
     renderer.render(scene, camera);
   }
 
-  const { timeline: tl, labels, duration: loopDuration } = buildTimeline(model, {
+  // Scroll pacing: a lead-in for the camera move, then pauses for the callouts.
+  const k = duration / BASE_DURATION;
+  const T = (ms) => ms * k;
+  const withCallouts = scrollMode && callouts && callouts.length > 0;
+  const lead = scrollMode && framing ? T(1600) : 0;
+  const { timeline: tl, labels, duration: loopDuration, marks } = buildTimeline(model, {
     duration,
     loop: !scrollMode,
+    lead,
+    holds: withCallouts ? { ground: T(4200), storeys: T(4400), complete: T(3200) } : {},
     // onRender fires only when a value changes; onUpdate also covers the holds.
     onRender: render,
     onUpdate: () => updateControls(),
   });
+
+  const cam = { focus: 0 };
+  if (lead) tl.add(cam, { focus: [0, 1], duration: lead, ease: 'inOutCubic' }, 0);
+  const calloutLayer = withCallouts ? createCallouts(stage, model, callouts) : null;
+  calloutLayer?.addToTimeline(tl, marks, T);
+  if (scrollMode) decorate?.(tl, { labels, marks, T });
 
   // In scroll mode Anime's ScrollObserver owns playback: it maps the target's
   // scroll range onto the timeline and eases towards it (`sync` smoothing).
@@ -151,17 +194,8 @@ export function createPlanToBuilding(container, options = {}) {
     const cap = w < 640 ? Math.min(1.5, maxPixelRatio) : maxPixelRatio;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
     renderer.setSize(w, h, false);
-    const pad = 1.04;
-    const bw = (view.max.x - view.min.x) * pad;
-    const bh = (view.max.y - view.min.y) * pad;
-    const cx = (view.max.x + view.min.x) / 2;
-    const cy = (view.max.y + view.min.y) / 2;
-    let halfW = bw / 2;
-    let halfH = bh / 2;
-    if (bw / bh > w / h) halfH = halfW / (w / h);
-    else halfW = halfH * (w / h);
-    Object.assign(camera, { left: cx - halfW, right: cx + halfW, top: cy + halfH, bottom: cy - halfH });
-    camera.updateProjectionMatrix();
+    stageW = w;
+    stageH = h;
     render();
   }
 
@@ -229,7 +263,8 @@ export function createPlanToBuilding(container, options = {}) {
     }
     // Scroll to the point in the track that maps to this stage.
     const top = observer.offsetStart + (time / loopDuration) * observer.distance;
-    window.scrollTo({ top, behavior: 'smooth' });
+    if (scroll.scrollTo) scroll.scrollTo(top);
+    else window.scrollTo({ top, behavior: 'smooth' });
   };
   const onReducedChange = () => {
     if (reducedQuery.matches && !scrollMode) {
@@ -287,6 +322,7 @@ export function createPlanToBuilding(container, options = {}) {
     reducedQuery.removeEventListener('change', onReducedChange);
     document.removeEventListener('visibilitychange', onVisibility);
     canvas.removeEventListener('webglcontextlost', onContextLost);
+    calloutLayer?.destroy();
     scene.traverse((obj) => obj.geometry?.dispose());
     Object.values(model.materials).forEach((m) => m.dispose());
     renderer.dispose();
