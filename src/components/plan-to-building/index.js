@@ -93,7 +93,7 @@ export function createPlanToBuilding(container, options = {}) {
 
   const scene = new THREE.Scene();
   const model = createModel(colors);
-  scene.add(model.root);
+  scene.add(model.spin);
   scene.add(new THREE.AmbientLight(0xffffff, 2.35));
   const sun = new THREE.DirectionalLight(0xffffff, 1.25);
   sun.position.set(-0.55, 1, 0.8);
@@ -104,10 +104,15 @@ export function createPlanToBuilding(container, options = {}) {
   camera.position.copy(target).add(new THREE.Vector3(0, Math.sin(ELEVATION), Math.cos(ELEVATION)).multiplyScalar(150));
   camera.lookAt(target);
   camera.updateMatrixWorld();
+  // Frame the drawing across the quarter turns it swings through (see
+  // timeline.js), so the camera framing stays fixed while it turns.
   const view = new THREE.Box2();
-  for (const p of model.boundsPoints) {
-    const v = p.clone().applyMatrix4(camera.matrixWorldInverse);
-    view.expandByPoint(new THREE.Vector2(v.x, v.y));
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let i = 0; i <= 8; i++) {
+    for (const p of model.boundsPoints) {
+      const v = p.clone().applyAxisAngle(up, ((i - 4) / 8) * Math.PI).applyMatrix4(camera.matrixWorldInverse);
+      view.expandByPoint(new THREE.Vector2(v.x, v.y));
+    }
   }
 
   // Facade parts wait inside the wall until it has risen; hide them while they

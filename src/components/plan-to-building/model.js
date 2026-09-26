@@ -154,6 +154,39 @@ function facadeFrame(f) {
 const FRAMES = Object.fromEntries(Object.entries(FACADES).map(([k, f]) => [k, facadeFrame(f)]));
 const REAR_FRAME = facadeFrame(REAR_INNER);
 
+// Every other exterior wall: the rear and the stepped sides. The references only
+// show the street elevations, so these get a plainer, invented treatment in the
+// same language; it only matters once the building turns.
+const SECONDARY = (() => {
+  const s = signedArea(OUTLINE) > 0 ? 1 : -1;
+  const same = (p, q) => Math.abs(p[0] - q[0]) < 1e-6 && Math.abs(p[1] - q[1]) < 1e-6;
+  const isFront = (a, b) => Object.values(FACADES)
+    .some((f) => (same(f.a, a) && same(f.b, b)) || (same(f.a, b) && same(f.b, a)));
+  return OUTLINE.map((a, i) => [a, OUTLINE[(i + 1) % OUTLINE.length]])
+    .filter(([a, b]) => !isFront(a, b))
+    // Walk each edge so the frame normal (-uz, ux) points outwards.
+    .map(([a, b]) => facadeFrame(s < 0 ? { a, b } : { a: b, b: a }));
+})();
+const ALL_FRAMES = [...Object.values(FRAMES), ...SECONDARY];
+
+// Pilaster positions and window-bay centres along a facade.
+function bayLayout(frame) {
+  const L = frame.length;
+  if (frame === FRAMES.leftDiag || frame === FRAMES.rightDiag) {
+    return { pilasters: [0.4, L / 3, (2 * L) / 3, L - 0.4], bays: [L / 6, L / 2, (5 * L) / 6] };
+  }
+  if (frame === FRAMES.entrance) return { pilasters: [0.4, L - 0.4], bays: [L / 2] };
+  if (!SECONDARY.includes(frame) || L < 4) return { pilasters: [], bays: [] };
+  const n = Math.max(1, Math.round(L / 4.7));
+  const inner = Array.from({ length: n - 1 }, (_, k) => ((k + 1) * L) / n);
+  return {
+    pilasters: [0.4, ...inner, L - 0.4],
+    bays: Array.from({ length: n }, (_, i) => ((2 * i + 1) * L) / (2 * n)),
+  };
+}
+const REAR_WALL = SECONDARY.find((f) => f.n[1] < -0.99 && f.length > 10);
+const SIDE_WALL = SECONDARY.find((f) => f.n[0] > 0.99 && Math.abs(f.length - 7.5) < 1e-6);
+
 // Matrix that maps facade-local coords (x along, y up, z out of the wall) to plan.
 function facadeMatrix(frame, s, y = 0) {
   const m = new THREE.Matrix4().makeRotationY(frame.rotY);
@@ -266,6 +299,14 @@ const WINDOW_TYPES = {
     p.mesh(box(-w / 2 - 0.5, h + 0.32, 0, w / 2 + 0.5, h + 0.56, 0.34));
     glazingBars(p, w, h, [0.26, 0.5, 0.74]);
   },
+  // Plainer window for the rear and sides.
+  upper(p) {
+    const w = 1.3, h = 2.8;
+    windowFrame(p, w, h, 0.18);
+    p.mesh(box(-w / 2 - 0.26, -0.18, 0, w / 2 + 0.26, -0.04, 0.26));
+    p.mesh(box(-w / 2 - 0.3, h + 0.22, 0, w / 2 + 0.3, h + 0.4, 0.24));
+    glazingBars(p, w, h, [0.36, 0.7]);
+  },
   ground(p) {
     const w = 1.4, h = 2.6;
     windowFrame(p, w, h);
@@ -349,9 +390,7 @@ function balcony(p, width, depth) {
 function facadeWork(p, frame, H, kind) {
   const L = frame.length;
   const start = p.mark();
-  const pilasters = frame === FRAMES.leftDiag || frame === FRAMES.rightDiag
-    ? [0.4, L / 3, (2 * L) / 3, L - 0.4]
-    : frame === FRAMES.entrance ? [0.4, L - 0.4] : [];
+  const { pilasters } = bayLayout(frame);
   for (const s of pilasters) p.mesh(box(s - 0.4, 0, 0, s + 0.4, H, 0.16));
 
   const z = 0.004;
@@ -376,7 +415,7 @@ function buildShell(ctx, H, kind) {
   const p = new Part(ctx);
   const inner = offsetPolygon(OUTLINE, kind === 'parapet' ? -0.45 : -EXT_WALL);
   p.mesh(prism(OUTLINE, [inner], 0, H));
-  for (const frame of Object.values(FRAMES)) facadeWork(p, frame, H, kind);
+  for (const frame of ALL_FRAMES) facadeWork(p, frame, H, kind);
   const shell = p.build('shell');
   return shell;
 }
@@ -492,9 +531,28 @@ function buildFacadeDetails(ctx, kind) {
     windows.push(mountOn(ctx, ent, ent.length / 2, 0.55, WINDOW_TYPES.frenchWide, 'window'));
     balconies.push(mountOn(ctx, ent, ent.length / 2, 0.55, (p) => balcony(p, 4.9, 0.8), 'balcony'));
   }
-  const rearY = kind === 'ground' ? 2.6 : 0.8;
-  for (const s of [REAR_FRAME.length * 0.3, REAR_FRAME.length * 0.7]) {
-    windows.push(mountOn(ctx, REAR_FRAME, s, rearY, WINDOW_TYPES.rear, 'window'));
+  // Rear and sides: one part per wall holding all its windows, to keep draw calls down.
+  for (const frame of SECONDARY) {
+    const { bays } = bayLayout(frame);
+    if (!bays.length) continue;
+    const rows = kind === 'ground'
+      ? [[WINDOW_TYPES.ground, 2.7], [WINDOW_TYPES.basement, 0.62]]
+      : [[WINDOW_TYPES.upper, 0.9]];
+    windows.push(mountOn(ctx, frame, 0, 0, (p) => {
+      for (const s of bays) {
+        for (const [draw, y] of rows) {
+          const start = p.mark();
+          draw(p);
+          p.transformFrom(start, new THREE.Matrix4().makeTranslation(s, y, 0));
+        }
+      }
+    }, 'window'));
+  }
+  // The rear wall's windows seen from inside, lined up with the outside ones.
+  const rearY = kind === 'ground' ? 2.7 : 0.9;
+  for (const s of bayLayout(REAR_WALL).bays) {
+    const x = REAR_WALL.a[0] + REAR_WALL.u[0] * s;
+    windows.push(mountOn(ctx, REAR_FRAME, x - REAR_FRAME.a[0], rearY, WINDOW_TYPES.rear, 'window'));
   }
   const byX = (a, b) => a.x - b.x;
   return { windows: windows.sort(byX), balconies: balconies.sort(byX), extras };
@@ -581,31 +639,14 @@ function buildRoof(ctx, base) {
 function buildCrown(ctx) {
   const p = new Part(ctx);
   p.mesh(prism(offsetPolygon(OUTLINE, 0.12), [offsetPolygon(OUTLINE, -0.75)], 0, 0.22));
-  for (const frame of [FRAMES.leftDiag, FRAMES.rightDiag, FRAMES.entrance]) {
-    const L = frame.length;
-    const caps = frame === FRAMES.entrance ? [0.4, L - 0.4] : [0.4, L / 3, (2 * L) / 3, L - 0.4];
-    for (const s of caps) {
+  for (const frame of ALL_FRAMES) {
+    for (const s of bayLayout(frame).pilasters) {
       const start = p.mark();
       p.mesh(box(-0.55, 0, -0.78, 0.55, 0.48, 0.46));
       p.mesh(box(-0.62, 0.48, -0.82, 0.62, 0.56, 0.52));
       p.transformFrom(start, facadeMatrix(frame, s, 0));
     }
   }
-  // Caps on the square corners of the rear and side walls.
-  const inner = offsetPolygon(OUTLINE, -EXT_WALL);
-  const s = signedArea(OUTLINE) > 0 ? 1 : -1;
-  OUTLINE.forEach((c, i) => {
-    const prev = OUTLINE[(i - 1 + OUTLINE.length) % OUTLINE.length];
-    const next = OUTLINE[(i + 1) % OUTLINE.length];
-    const e1 = [c[0] - prev[0], c[1] - prev[1]];
-    const e2 = [next[0] - c[0], next[1] - c[1]];
-    const axisAligned = (e) => Math.abs(e[0]) < 1e-6 || Math.abs(e[1]) < 1e-6;
-    const convex = s * (e1[0] * e2[1] - e1[1] * e2[0]) > 0;
-    if (!convex || !axisAligned(e1) || !axisAligned(e2)) return;
-    const cx = c[0] + (inner[i][0] - c[0]) * 0.4;
-    const cz = c[1] + (inner[i][1] - c[1]) * 0.4;
-    p.mesh(box(cx - 0.6, 0, cz - 0.6, cx + 0.6, 0.48, cz + 0.6));
-  });
   return p.build('crown');
 }
 
@@ -649,8 +690,12 @@ export function createModel(colors = {}) {
   };
   const ctx = { linear, materials };
 
+  // `spin` turns the whole model (plinth included) about the plan centre.
+  const spin = new THREE.Group();
+  spin.name = 'spin';
   const root = new THREE.Group();
   root.position.set(-PLAN_CENTER[0], 0, -PLAN_CENTER[1]);
+  spin.add(root);
 
   const { site, steps, corners } = buildSite(ctx);
   root.add(site, ...steps);
@@ -694,13 +739,17 @@ export function createModel(colors = {}) {
     stair: w(-10.5, LEVELS.podium + LEVELS.groundH * 0.45, 9.6),
     living: w(-10.4, LEVELS.podium + LEVELS.groundH - 0.2, 19.2),
     baths: w(9.15, LEVELS.podium + LEVELS.groundH - 0.2, 19.2),
-    apartments: onFacade(FRAMES.leftDiag, FRAMES.leftDiag.length / 2, s1.wallBase + 2.3, 0.1),
-    balconies: onFacade(FRAMES.rightDiag, FRAMES.rightDiag.length / 2, s2.wallBase + 1.55, 0.5),
+    // From here on the building has turned a quarter (see timeline.js), so these
+    // sit on the faces that turn towards the camera: the right-hand street
+    // front and the side wall beside it.
+    apartments: onFacade(FRAMES.rightDiag, FRAMES.rightDiag.length / 6, s1.wallBase + 2.3, 0.1),
+    balconies: onFacade(FRAMES.rightDiag, (5 * FRAMES.rightDiag.length) / 6, s2.wallBase + 1.55, 0.5),
     roof: w(0, roof.wallBase + 0.02, 11),
-    cornice: onFacade(FRAMES.leftDiag, FRAMES.leftDiag.length / 3, crownTop, 0.3),
+    cornice: onFacade(FRAMES.rightDiag, FRAMES.rightDiag.length / 3, crownTop, 0.3),
+    side: onFacade(SIDE_WALL, SIDE_WALL.length / 2, s1.wallBase + 1.5, 0.1),
     entrance: onFacade(FRAMES.entrance, FRAMES.entrance.length / 2, LEVELS.podium + 3.2, 0.2),
-    // Outer corners of the facade, top and bottom, for placing labels beside it.
-    edges: [[-15, 21.5], [15, 21.5]].flatMap(([x, z]) => [w(x, 0, z), w(x, crownTop, z)]),
+    // Every outer corner, top and bottom, for placing labels beside the building.
+    edges: OUTLINE.flatMap(([x, z]) => [w(x, 0, z), w(x, crownTop, z)]),
   };
 
   const topY = roof.wallBase + roof.H + 1;
@@ -709,5 +758,5 @@ export function createModel(colors = {}) {
     ...OUTLINE.map(([x, z]) => [x, topY, z]),
   ].map(([x, y, z]) => new THREE.Vector3(x - PLAN_CENTER[0], y, z - PLAN_CENTER[1]));
 
-  return { root, storeys, roof, crown, steps, materials, boundsPoints, palette, patches, anchors };
+  return { spin, root, storeys, roof, crown, steps, materials, boundsPoints, palette, patches, anchors };
 }

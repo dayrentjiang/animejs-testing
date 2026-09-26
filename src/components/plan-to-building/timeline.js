@@ -103,6 +103,14 @@ export function buildTimeline(model, {
   const revealAt = t + T(2150);
   tl.label('complete', revealAt + T(400));
 
+  // While floors 1-2 build, the building makes one quarter turn and stays
+  // there: the storeys hold, the roof and the final reveal are all seen from
+  // that side view. The ground floor builds front-on.
+  const turned = -Math.PI / 2;
+  tl.add(model.spin.rotation, {
+    y: [0, turned], duration: marks.storeys[0] - marks.ground[1], ease: 'inOutSine',
+  }, marks.ground[1]);
+
   if (!loop) {
     const end = revealAt + T(1500) + hold.complete;
     marks.complete = [revealAt, end];
@@ -112,6 +120,8 @@ export function buildTimeline(model, {
 
   // ---- Return to the plan --------------------------------------------------
   let d = revealAt + T(2600);
+  // Turn back to the front so the loop ends on the pose it started from.
+  tl.add(model.spin.rotation, { y: [turned, 0], duration: T(1600), ease: 'inOutSine' }, d);
   const upper = storeys.slice(1).reverse();
   tl.add(positions(upper.flatMap((s) => s.balconies)), {
     z: [0, -0.65], duration: T(380), ease: 'inQuad', delay: stagger(T(18)),

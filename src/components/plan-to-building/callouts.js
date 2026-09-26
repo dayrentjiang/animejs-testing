@@ -12,11 +12,11 @@ export const DEFAULT_CALLOUTS = [
   { phase: 'ground', anchor: 'living', title: 'Living room', text: 'Corner room, windows on the street', side: 'left', dy: 50, highlight: 'living' },
   { phase: 'ground', anchor: 'hall', title: 'Entrance hall', text: 'Runs front to back', side: 'right', dy: -120, highlight: 'hall' },
   { phase: 'ground', anchor: 'baths', title: 'Bathrooms', text: 'Two per floor', side: 'right', dy: 30, highlight: 'baths' },
-  { phase: 'storeys', anchor: 'apartments', title: 'Apartments', text: 'Three per floor, twelve in all', side: 'left', dy: 10, highlight: 'apartments' },
-  { phase: 'storeys', anchor: 'balconies', title: 'Balconies', text: 'Wrought iron on every bay', side: 'right', dy: -10, highlight: 'balconies' },
+  { phase: 'storeys', anchor: 'apartments', title: 'Apartments', text: 'Three per floor, twelve in all', side: 'left', dy: 20, highlight: 'apartments' },
+  { phase: 'storeys', anchor: 'balconies', title: 'Balconies', text: 'Wrought iron on every street bay', side: 'left', dy: -90, highlight: 'balconies' },
   { phase: 'complete', anchor: 'roof', title: 'Roof terrace', text: 'Behind a stone parapet', side: 'left', dy: -60, highlight: 'roof' },
   { phase: 'complete', anchor: 'cornice', title: 'Cornice', text: 'Pier caps above each pilaster', side: 'left', dy: 40 },
-  { phase: 'complete', anchor: 'entrance', title: 'Corner entrance', text: 'Arched double door and stone steps', side: 'right', dy: 10, highlight: 'entrance' },
+  { phase: 'complete', anchor: 'side', title: 'Side elevation', text: 'Plainer stone onto the side street', side: 'right', dy: 20 },
 ];
 
 export function createCallouts(stageEl, model, defs = DEFAULT_CALLOUTS) {
@@ -60,6 +60,8 @@ export function createCallouts(stageEl, model, defs = DEFAULT_CALLOUTS) {
   // Building silhouette extremes (world), used to park labels beside it.
   const edges = model.anchors.edges;
   const e = new THREE.Vector3();
+  const spun = new THREE.Vector3();
+  const Y = new THREE.Vector3(0, 1, 0);
   const toScreen = (p, camera, width, height) => {
     e.copy(p).project(camera);
     return [((e.x + 1) / 2) * width, ((1 - e.y) / 2) * height];
@@ -67,11 +69,13 @@ export function createCallouts(stageEl, model, defs = DEFAULT_CALLOUTS) {
 
   function update(camera, width, height) {
     const wide = width >= 900;
-    const xs = edges.map((p) => toScreen(p, camera, width, height)[0]);
+    const turn = model.spin.rotation.y;
+    const xs = edges.map((p) => toScreen(spun.copy(p).applyAxisAngle(Y, turn), camera, width, height)[0]);
     const left = Math.min(...xs);
     const right = Math.max(...xs);
     for (const item of items) {
-      const [x, y] = toScreen(item.anchor, camera, width, height);
+      spun.copy(item.anchor).applyAxisAngle(Y, turn);
+      const [x, y] = toScreen(spun, camera, width, height);
       let ex;
       let ey;
       let side;
