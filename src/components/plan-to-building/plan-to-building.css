@@ -1,0 +1,147 @@
+/* Scoped to .ptb. Size it from outside with width + --ptb-aspect. */
+.ptb {
+  --ptb-aspect: 1 / 1;
+  --ptb-ink: #2a2c31;
+  --ptb-muted: #8a8d93;
+  --ptb-rule: rgba(42, 44, 49, 0.14);
+  --ptb-accent: #2a2c31;
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--ptb-ink);
+  font: inherit;
+}
+
+.ptb__stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--ptb-aspect);
+}
+
+.ptb__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 500ms ease;
+}
+.ptb[data-state='ready'] .ptb__canvas { opacity: 1; }
+.ptb__fallback[hidden] { display: none; }
+
+.ptb__fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+  color: var(--ptb-muted);
+  font-size: 14px;
+}
+
+.ptb__controls {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: min(100%, 460px);
+  margin-inline: auto;
+}
+
+.ptb__play {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-top: -9px;
+  border: 1px solid var(--ptb-rule);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ptb-ink);
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.ptb__play:hover { border-color: var(--ptb-ink); }
+.ptb__play:focus-visible,
+.ptb__stage-btn:focus-visible,
+.ptb__scrub:focus-visible {
+  outline: 2px solid var(--ptb-accent);
+  outline-offset: 3px;
+}
+.ptb__play svg { width: 13px; height: 13px; fill: currentColor; }
+
+.ptb__track { flex: 1; min-width: 0; }
+
+.ptb__scrub {
+  display: block;
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.ptb__scrub::-webkit-slider-runnable-track { height: 1px; background: var(--ptb-rule); }
+.ptb__scrub::-moz-range-track { height: 1px; background: var(--ptb-rule); }
+.ptb__scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--ptb-ink);
+  border: 0;
+}
+.ptb__scrub::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--ptb-ink);
+  border: 0;
+}
+
+.ptb__stages {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.ptb__stage-btn {
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--ptb-muted);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 200ms ease;
+}
+.ptb__stage-btn:hover,
+.ptb__stage-btn.is-active { color: var(--ptb-ink); }
+
+/* Scroll mode: a read-only progress rule instead of the scrubber. */
+.ptb__progress {
+  position: relative;
+  height: 16px;
+}
+.ptb__progress::before,
+.ptb__progress span {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 7.5px;
+  height: 1px;
+  background: var(--ptb-rule);
+}
+.ptb__progress span {
+  background: var(--ptb-ink);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+.ptb[data-mode='scroll'] .ptb__controls { width: min(100%, 420px); }

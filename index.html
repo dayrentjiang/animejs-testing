@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ligne &amp; Pierre — Architects</title>
+    <meta name="description" content="Ligne & Pierre is an architecture studio that takes buildings from the first line of the plan to the last stone of the cornice." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">Ligne <span>&amp;</span> Pierre</a>
+      <nav aria-label="Primary">
+        <a href="#work">Work</a>
+        <a href="#studio">Studio</a>
+        <a href="#contact">Contact</a>
+      </nav>
+    </header>
+
+    <main>
+      <!-- The hero is a tall scroll track; the drawing stays pinned while the
+           scroll position builds the building. -->
+      <section class="hero" aria-labelledby="hero-title" data-hero>
+        <div class="hero__copy">
+          <p class="eyebrow">Residential architecture · Paris &amp; Lyon</p>
+          <h1 id="hero-title">From the first line<br /><em>to the last stone.</em></h1>
+          <p class="lede">
+            We design apartment buildings the way they are built: plan first, then floor by floor,
+            until the cornice closes the drawing.
+          </p>
+          <div class="actions">
+            <a class="button button--solid" href="#work">See our buildings</a>
+            <a class="button button--ghost" href="#contact">Start a project</a>
+          </div>
+          <dl class="facts">
+            <div><dt>Storeys</dt><dd>4</dd></div>
+            <div><dt>Apartments</dt><dd>12</dd></div>
+            <div><dt>Plan to handover</dt><dd>26 mo.</dd></div>
+          </dl>
+          <p class="scroll-hint" aria-hidden="true"><span></span>Scroll to build</p>
+        </div>
+        <div class="hero__track" data-hero-track>
+          <div class="hero__sticky">
+            <div class="hero__visual" data-plan-to-building></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="work" id="work" aria-labelledby="work-title">
+        <p class="eyebrow">Selected work</p>
+        <h2 id="work-title">Buildings that read as clearly as their drawings.</h2>
+        <ol class="work__list">
+          <li><span>2025</span><strong>Rue des Carmes</strong><em>12 apartments · Lyon 2e</em></li>
+          <li><span>2023</span><strong>Angle Voltaire</strong><em>18 apartments · Paris 11e</em></li>
+          <li><span>2021</span><strong>Maison du Quai</strong><em>8 apartments · Annecy</em></li>
+        </ol>
+      </section>
+    </main>
+
+    <footer class="site-footer" id="contact">
+      <span>Ligne &amp; Pierre Architectes</span>
+      <a href="mailto:studio@example.com">studio@example.com</a>
+    </footer>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
