@@ -138,15 +138,19 @@ export function createPlanToBuilding(container, options = {}) {
   let stageW = 1;
   let stageH = 1;
   const pad = (w, h) => ({ x: w * 0.02, y: h * 0.02, w: w * 0.96, h: h * 0.96 });
+  const aim = new THREE.Vector3();
   // Orthographic frustum that maps the drawing's bounds onto a stage rect.
+  // `cam.zoom` pushes in, and `cam.pull` (0-1) slides the view centre towards
+  // the point at height `cam.lookY` so a zoom lands on the part being shown.
   function frameCamera() {
     const a = (framing?.start ?? pad)(stageW, stageH);
     const b = (framing?.focus ?? framing?.start ?? pad)(stageW, stageH);
     const f = cam.focus;
     const r = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, w: a.w + (b.w - a.w) * f, h: a.h + (b.h - a.h) * f };
-    const s = Math.max((view.max.x - view.min.x) / r.w, (view.max.y - view.min.y) / r.h);
-    const cx = (view.max.x + view.min.x) / 2;
-    const cy = (view.max.y + view.min.y) / 2;
+    const s = Math.max((view.max.x - view.min.x) / r.w, (view.max.y - view.min.y) / r.h) / cam.zoom;
+    aim.set(0, cam.lookY, 0).applyMatrix4(camera.matrixWorldInverse);
+    const cx = (view.max.x + view.min.x) / 2 + (aim.x - (view.max.x + view.min.x) / 2) * cam.pull;
+    const cy = (view.max.y + view.min.y) / 2 + (aim.y - (view.max.y + view.min.y) / 2) * cam.pull;
     camera.left = cx - (r.x + r.w / 2) * s;
     camera.right = camera.left + stageW * s;
     camera.top = cy + (r.y + r.h / 2) * s;
@@ -175,8 +179,22 @@ export function createPlanToBuilding(container, options = {}) {
     onUpdate: () => updateControls(),
   });
 
-  const cam = { focus: 0 };
+  const cam = { focus: 0, zoom: 1, pull: 0, lookY: 3.5 };
   if (lead) tl.add(cam, { focus: [0, 1], duration: lead, ease: 'inOutCubic' }, 0);
+  // Scroll mode: push in on the ground floor while its rooms are labelled, pull
+  // back as floors 1-2 rise, push in on the facade for the storeys labels, widen
+  // for the reveal, then drift in slowly on the finished building.
+  if (scrollMode) {
+    const [g0, g1] = marks.ground;
+    const [s0, s1] = marks.storeys;
+    const [reveal, end] = marks.complete;
+    const zoom = (from, to, props, ease = 'inOutSine') => tl.add(cam, { ...props, duration: to - from, ease }, from);
+    zoom(g0, g1, { zoom: [1, 1.45], pull: [0, 1], lookY: [3.5, 3.5] });
+    zoom(g1, s0, { zoom: [1.45, 1], pull: [1, 0], lookY: [3.5, 10] });
+    zoom(s0, s1, { zoom: [1, 1.3], pull: [0, 1], lookY: [10, 10] });
+    zoom(s1, reveal, { zoom: [1.3, 0.96], pull: [1, 0], lookY: [10, 13] });
+    zoom(reveal, end, { zoom: [0.96, 1.08], pull: [0, 0.35], lookY: [13, 13] }, 'outSine');
+  }
   const calloutLayer = withCallouts ? createCallouts(stage, model, callouts) : null;
   calloutLayer?.addToTimeline(tl, marks, T);
   if (scrollMode) decorate?.(tl, { labels, marks, T });

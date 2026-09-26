@@ -82,7 +82,12 @@ export function createCallouts(stageEl, model, defs = DEFAULT_CALLOUTS) {
       if (wide) {
         side = item.def.side;
         const gap = 56;
-        ex = (side === 'left' ? left - gap : right + gap) - x;
+        // Park the label beside the building, but keep it on stage when zoomed in.
+        const labelW = 230;
+        const endX = side === 'left'
+          ? Math.max(left - gap, labelW)
+          : Math.min(right + gap, width - labelW);
+        ex = endX - x;
         ey = item.def.dy;
       } else {
         const { row, rows } = slot.get(item.def);
